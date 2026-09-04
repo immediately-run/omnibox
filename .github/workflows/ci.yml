@@ -1,0 +1,62 @@
+name: ci
+
+# Build, test, lint on every PR + push; publish to npm on push to main via npm
+# trusted publishing (OIDC), mirroring platform-constants / preauth-core. landing-page
+# and the Home app consume this package as an ordinary pinned npm dependency (NOT a
+# file: sibling), so it must be published for their CI `npm ci`/tsc to resolve it.
+# NOTE: npm trusted publishing must be configured for this package on npmjs.com
+# before the first publish succeeds; until then build/test/lint still run, only the
+# publish step is inert (it skips if the version is already published and otherwise
+# needs the OIDC trust link).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The publish-version check diffs this branch against its merge base, so it
+          # needs the history to find one. A depth-1 checkout has none, and the check
+          # refuses to report success without a diff.
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false # never cache in release builds
+      # Trusted publishing requires npm >= 11.5.1
+      - run: npm install -g npm@latest
+      # A pin to an unpublished @immediately-run/* version, and a
+      # package.json/package-lock.json disagreement about it — before `npm ci`, where
+      # such a pin dies in unreadable ETARGET noise.
+      - run: npm run check:pins
+      # Shipped bytes changed and `version` did not: same question, asked at PR time
+      # (the publish step below only runs on push to main).
+      - name: Shipped bytes changed ⇒ the version was bumped in this PR
+        if: github.event_name == 'pull_request'
+        run: npm run check:publish-version
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run lint
+      - name: Publish to npm via trusted publishing (skip if version already published)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          # setup-node's registry-url writes an .npmrc bound to NODE_AUTH_TOKEN.
+          # Clearing it forces OIDC trusted publishing instead of (empty) token auth.
+          NODE_AUTH_TOKEN: ""
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VER=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VER" version >/dev/null 2>&1; then
+            echo "::notice::$PKG_NAME@$PKG_VER already published — skipping."
+            exit 0
+          fi
+          npm publish --access public
