@@ -16,8 +16,13 @@ box.
   sources; the package ranks and orders the app candidates (name > repo >
   blurb > category) but imports no consumer records. An app-row chip comes
   back through `renderChip` — chips are site components with site data types.
-  An `<Omnibox>` with no `hits` is the launch grammar only — the Home app's
-  shape.
+  Doc rows come back through `renderDoc(hit, anchorProps)`: render your own
+  in-app link and spread `anchorProps` so the combobox contract (highlight,
+  Enter walk) survives. The fallback is a plain `<a href>` whose href is real
+  and resolvable — but on-host a plain click navigates the sandboxed frame
+  instead of routing the app, so a consumer rendering inside the frame should
+  always supply `renderDoc`. An `<Omnibox>` with no `hits` is the launch
+  grammar only — the Home app's shape.
 
 ## Peer dependencies
 
