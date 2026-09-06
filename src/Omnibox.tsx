@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import './omnibox.css';
 import { parseLaunch, PROVIDERS, type Launch } from './launch';
@@ -44,6 +44,11 @@ export interface AppHit {
   blurb: string;
   /** The repository the row opens — an org repo under immediately-run. */
   repo: string;
+  /** The PLATFORM path the row opens, e.g. `/present/github/immediately-run/todo/main/files/src/App.tsx`.
+   *  Supplied by the consumer's `apps` source beside its own route builder, so the
+   *  package carries no second spelling of any route family. Rendered through
+   *  `PlatformLink` (host-space href, frame-escaping). */
+  path: string;
   /** Opaque to the package: a consumer's `renderChip` reads it back. */
   provenance?: unknown;
 }
@@ -54,6 +59,9 @@ export interface DocHit {
   lead: string;
   /** A real href — copy-link, middle-click and open-in-new-tab all resolve it. */
   href: string;
+  /** The app-space route behind `href`, when the consumer renders the row through
+   *  its own in-app link (`renderDoc`). Opaque to the package. */
+  to?: string;
 }
 
 /** The data seams. Absent sources simply yield no rows of their kind; an omnibox
@@ -78,11 +86,15 @@ function appScore(hit: AppHit, q: string): number {
   return -1;
 }
 
-/** The platform path an app row opens. The directory's apps are org repos that
- *  open at their entry — the one shape an injected `apps` source feeds. */
-const appRoute = (repo: string) => `/present/github/immediately-run/${repo}/main/files/src/App.tsx`;
-
 /* ── the component ──────────────────────────────────────────────────────── */
+
+/** What a `renderDoc` anchor must spread: the combobox's option identity and state. */
+export interface DocAnchorProps {
+  id: string;
+  className: string;
+  role: 'option';
+  'aria-selected': boolean;
+}
 
 export interface OmniboxProps {
   variant: OmniboxVariant;
@@ -95,9 +107,16 @@ export interface OmniboxProps {
   /** Renders the app row's trailing chip (e.g. a provenance chip). The chip is a
    *  site component with site data types, so the package renders what it is given. */
   renderChip?: (hit: AppHit) => ReactNode;
+  /** Renders a doc ROW. `anchorProps` carries the combobox contract (the option's
+   *  id, class, role and aria-selected) — spread them onto the anchor you render so
+   *  the arrow-key highlight and the Enter walk keep working. The fallback is a
+   *  plain `<a href>` — its href is real and resolvable, but on-host a plain click
+   *  navigates the sandboxed FRAME to the target instead of routing the app, so a
+   *  consumer with an in-app link (the landing page's SiteLink) should supply this. */
+  renderDoc?: (hit: DocHit, anchorProps: DocAnchorProps) => ReactNode;
 }
 
-function Omnibox({ variant, heroShortcut = false, hits, renderChip }: OmniboxProps) {
+function Omnibox({ variant, heroShortcut = false, hits, renderChip, renderDoc }: OmniboxProps) {
   const isMobile = useMediaQuery('(max-width: 720px)');
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(-1);
@@ -107,8 +126,9 @@ function Omnibox({ variant, heroShortcut = false, hits, renderChip }: OmniboxPro
   const inputId = `${listId}-input`;
   const helperId = useId();
   const noticeId = useId();
-  // A source that throws is degraded, not fatal: logged ONCE per source, then
-  // that group stays empty — the location row still renders.
+  // A source that throws is degraded, not fatal: that query's group stays empty
+  // and the location row still renders. The source is called again on the next
+  // keystroke — a transient throw recovers silently; only the LOG is once.
   const warnedSources = useRef<Set<keyof OmniboxHitSources>>(new Set());
   const callSource = useCallback(
     function callSource<K extends keyof OmniboxHitSources>(
@@ -121,7 +141,7 @@ function Omnibox({ variant, heroShortcut = false, hits, renderChip }: OmniboxPro
       } catch (error) {
         if (!warnedSources.current.has(kind)) {
           warnedSources.current.add(kind);
-          console.warn(`omnibox: the "${String(kind)}" hit source threw and is disabled for this mount`, error);
+          console.warn(`omnibox: the "${String(kind)}" hit source threw; its rows are empty for this query`, error);
         }
         return [];
       }
@@ -336,7 +356,7 @@ function Omnibox({ variant, heroShortcut = false, hits, renderChip }: OmniboxPro
                         className="omnibox-option"
                         role="option"
                         aria-selected={highlight === idx}
-                        path={appRoute(hit.repo)}
+                        path={hit.path}
                       >
                         <span className="omnibox-option-name">{hit.name}</span>
                         <span className="omnibox-option-cat">{hit.category}</span>
@@ -351,6 +371,15 @@ function Omnibox({ variant, heroShortcut = false, hits, renderChip }: OmniboxPro
                 <div className="omnibox-group" role="group" aria-label="Docs and tutorials">
                   {docHits.map((hit) => {
                     const idx = options.findIndex((o) => o.id === `${listId}-opt-doc-${hit.key}`);
+                    const anchorProps: DocAnchorProps = {
+                      id: `${listId}-opt-doc-${hit.key}`,
+                      className: 'omnibox-option',
+                      role: 'option',
+                      'aria-selected': highlight === idx,
+                    };
+                    if (renderDoc) {
+                      return <Fragment key={hit.key}>{renderDoc(hit, anchorProps)}</Fragment>;
+                    }
                     return (
                       <a
                         key={hit.key}

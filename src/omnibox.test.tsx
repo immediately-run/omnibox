@@ -42,10 +42,10 @@ describe('Omnibox with no hit sources (the Home shape, R3-540)', () => {
 
 describe('Omnibox with an injected apps source', () => {
   const source: AppHit[] = [
-    { key: 'whiteboard', name: 'Whiteboard', category: 'Creative', blurb: 'canvas', repo: 'whiteboard' },
-    { key: 'todo-grid', name: 'Todo grid', category: 'Work', blurb: 'tasks', repo: 'todo-grid' },
-    { key: 'my-todo', name: 'My stuff', category: 'Work', blurb: 'a todo list', repo: 'my-todo' },
-    { key: 'unrelated', name: 'Reader', category: 'Docs', blurb: 'feeds', repo: 'reader' },
+    { key: 'whiteboard', name: 'Whiteboard', category: 'Creative', blurb: 'canvas', repo: 'whiteboard', path: '/present/github/immediately-run/whiteboard/main/files/src/App.tsx' },
+    { key: 'todo-grid', name: 'Todo grid', category: 'Work', blurb: 'tasks', repo: 'todo-grid', path: '/present/github/immediately-run/todo-grid/main/files/src/App.tsx' },
+    { key: 'my-todo', name: 'My stuff', category: 'Work', blurb: 'a todo list', repo: 'my-todo', path: '/present/github/immediately-run/my-todo/main/files/src/App.tsx' },
+    { key: 'unrelated', name: 'Reader', category: 'Docs', blurb: 'feeds', repo: 'reader', path: '/present/github/immediately-run/reader/main/files/src/App.tsx' },
   ];
 
   it("ranks, filters and orders the source's candidates (name > repo > blurb; below-threshold dropped)", async () => {
@@ -59,9 +59,7 @@ describe('Omnibox with an injected apps source', () => {
     // score -1 and never render.
     expect(rows).toEqual(['Todo grid', 'My stuff']);
     const openRow = screen.getByRole('option', { name: /Todo grid/ });
-    expect(openRow.getAttribute('href')).toBe(
-      `${outerHref}/present/github/immediately-run/todo-grid/main/files/src/App.tsx`,
-    );
+    expect(openRow.getAttribute('href')).toBe(`${outerHref}${source[1].path}`);
   });
 
   it("hands each app row to renderChip (the chip is the site's, not the package's)", async () => {
@@ -89,6 +87,45 @@ describe('Omnibox with an injected docs source', () => {
     await type('overview');
     const row = screen.getByRole('option', { name: /Overview/ });
     expect(row.getAttribute('href')).toBe('/docs/start/overview');
+  });
+
+  it("renderDoc renders the row: the consumer's link gets the anchor contract and routes in-app", async () => {
+    const docs: DocHit[] = [
+      {
+        key: 'docs/start--overview',
+        title: 'Overview',
+        lead: 'Start here',
+        href: 'https://immediately.run/docs/start/overview',
+        to: '/docs/start/overview',
+      },
+    ];
+    renderOmnibox(
+      <Omnibox
+        variant="hero"
+        hits={{ docs: () => docs }}
+        renderDoc={(hit, anchorProps) => (
+          // The consumer's in-app link: intercepts plain clicks and routes the app,
+          // while href stays real for copy-link / middle-click. Spread the contract.
+          <a
+            {...anchorProps}
+            href={hit.href}
+            onClick={(e) => {
+              if (!(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) e.preventDefault();
+            }}
+            data-app-route={hit.to}
+          >
+            <span className="omnibox-option-name">{hit.title}</span>
+            <span className="omnibox-option-blurb">{hit.lead}</span>
+          </a>
+        )}
+      />,
+    );
+    await type('overview');
+    const row = screen.getByRole('option', { name: /Overview/ });
+    expect(row.getAttribute('href')).toBe('https://immediately.run/docs/start/overview');
+    expect(row.getAttribute('data-app-route')).toBe('/docs/start/overview');
+    expect(row.className).toBe('omnibox-option');
+    expect(row.id.endsWith('-opt-doc-docs/start--overview')).toBe(true);
   });
 });
 
