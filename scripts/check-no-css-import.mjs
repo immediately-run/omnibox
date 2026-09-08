@@ -22,15 +22,28 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
 
-/** Any import/require of a `.css` specifier in JS source. */
-const CSS_IMPORT = /(?:^|[^\w$])(?:import\s*(?:[^'";]*from\s*)?|require\s*\(\s*)['"][^'"]*\.css['"]/;
+/**
+ * Any static import, dynamic import, or require of a `.css` specifier in JS source.
+ *
+ * The `\(?` after `import` is not decoration: `bundle: false` preserves a dynamic
+ * `import("./x.css")` verbatim, and it fails in a consumer exactly the same way as the
+ * static form. Without it the gate had a false negative on the shape most likely to be
+ * reached for as a "safer" workaround.
+ */
+const CSS_IMPORT = /(?:^|[^\w$])(?:import\s*\(?\s*(?:[^'";]*from\s*)?|require\s*\(\s*)['"][^'"]*\.css['"]/;
 
 if (process.argv.includes('--self-test')) {
   const cases = [
     ['detects a bare ESM side-effect import', `import "./omnibox.css";`, true],
     ['detects a CJS require', `var x=require("./omnibox.css");`, true],
     ['detects a single-quoted import', `import './a/b.css'\n`, true],
-    ['ignores the word omnibox.css inside a comment-free string of CSS text', `export const C = ".a{}";`, false],
+    ['detects a dynamic import', `const m = import("./omnibox.css");`, true],
+    // THE input this gate actually scans, and the one it must not false-positive on:
+    // `dist/omniboxStyles.generated.js` is 6 KB of stylesheet text inside a JS string,
+    // and a stylesheet may itself contain `@import "…css"`. The previous case here used
+    // `".a{}"` — which contains no `.css` at all, so it named this path and exercised
+    // nothing.
+    ['ignores an @import INSIDE baked CSS text', `export const C = "@import \\"reset.css\\";\\n.a{}";`, false],
     ['ignores a URL that merely ends in .css', `const href = "https://x/y.css";`, false],
   ];
   let failures = 0;

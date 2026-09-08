@@ -42,11 +42,22 @@ jobs:
       - name: Shipped bytes changed ⇒ the version was bumped in this PR
         if: github.event_name == 'pull_request'
         run: npm run check:publish-version
+      # BEFORE `npm ci` (whose `prepare` runs the build) and before `npm run build`.
+      # Both regenerate src/omniboxStyles.generated.ts — the very file this reads — so
+      # running it later can only ever check the build's own output against its own
+      # input. It was wired after the build and was therefore inert: a stale committed
+      # module would have been silently laundered into a correct one on the way to
+      # publish, by the gate that exists to stop exactly that.
+      - run: npm run check:css-parity
       - run: npm ci
       - run: npm run build
+      # The other half: the build must not REWRITE a tracked source file. If it does,
+      # the committed generated module was stale and the line above was the last chance
+      # to see it.
+      - name: The build did not rewrite a tracked source file
+        run: git diff --exit-code src/omniboxStyles.generated.ts
       - run: npm test
       - run: npm run lint
-      - run: npm run check:css-parity
       - run: npm run check:no-css-import
       - name: Publish to npm via trusted publishing (skip if version already published)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

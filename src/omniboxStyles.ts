@@ -37,7 +37,16 @@ export function ensureOmniboxStyles(): void {
     style.id = STYLE_ID;
     style.textContent = OMNIBOX_CSS;
     (document.head ?? document.documentElement).appendChild(style);
-  } catch {
-    /* see the doc comment: unstyled beats dead. */
+  } catch (err) {
+    // Unstyled beats dead — but silent beats neither. Three different failures land here
+    // (no `head` or `documentElement`, an embedding that refuses `createElement('style')`,
+    // a refused `textContent` assignment) and without this they are indistinguishable
+    // from "the styles are fine", which is how an unstyled combobox goes unreported.
+    // `console.warn` and not `throw`: the caller can recover from neither outcome.
+    try {
+      console.warn('[omnibox] could not inject the stylesheet; rendering unstyled.', err);
+    } catch {
+      /* a console that throws must not be the thing that breaks the render. */
+    }
   }
 }

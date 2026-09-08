@@ -23,7 +23,10 @@
     "dist"
   ],
   "sideEffects": [
-    "*.css"
+    "*.css",
+    "dist/Omnibox.js",
+    "dist/Omnibox.cjs",
+    "src/Omnibox.tsx"
   ],
   "scripts": {
     "build": "node scripts/build-css.mjs && tsup && node scripts/build-css.mjs --dist",

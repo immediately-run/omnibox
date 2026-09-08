@@ -53,7 +53,7 @@ if (baked === null) {
 }
 if (baked !== css) {
   console.error('✗ src/omniboxStyles.generated.ts has drifted from src/omnibox.css.');
-  console.error(`  css ${css.length} bytes, baked ${baked.length} bytes. Run \`npm run build:css\`.`);
+  console.error(`  css ${Buffer.byteLength(css)} bytes, baked ${Buffer.byteLength(baked)} bytes. Run \`npm run build:css\`.`);
   process.exit(1);
 }
-console.log(`PASS  src/omniboxStyles.generated.ts matches src/omnibox.css (${css.length} bytes).`);
+console.log(`PASS  src/omniboxStyles.generated.ts matches src/omnibox.css (${Buffer.byteLength(css)} bytes).`);
