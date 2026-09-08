@@ -170,15 +170,27 @@ describe('the stylesheet ships as JavaScript (R3-565)', () => {
   // owns it (with its own four self-test cases), and a second copy of the same gate in a
   // jsdom suite would only be a second thing to keep current.
 
-  it('never fails the app when the DOM refuses the injection', async () => {
+  it('never fails the app when the DOM refuses the injection, and says so EXACTLY ONCE', async () => {
     // Unstyled beats dead: some embeddings forbid a style element, and the caller can
     // recover from neither outcome — so the one that leaves the app running wins.
+    //
+    // `not.toThrow()` alone was already true before the diagnostic existed, so it could
+    // not tell the warning's presence from its absence. The COUNT is the assertion that
+    // can: in the failure path the element is never created, so the id guard never
+    // engages and a naive implementation re-warns on every call — once per render, in
+    // exactly the embedding this fallback is for.
+    vi.resetModules();
     const { ensureOmniboxStyles } = await import('./omniboxStyles');
     document.getElementById('immediately-run-omnibox-css')?.remove();
-    const spy = vi.spyOn(document, 'createElement').mockImplementation(() => {
+    const create = vi.spyOn(document, 'createElement').mockImplementation(() => {
       throw new Error('style elements are not permitted here');
     });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(() => ensureOmniboxStyles()).not.toThrow();
-    spy.mockRestore();
+    expect(() => ensureOmniboxStyles()).not.toThrow();
+    expect(() => ensureOmniboxStyles()).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(1);
+    create.mockRestore();
+    warn.mockRestore();
   });
 });

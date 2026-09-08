@@ -15,8 +15,8 @@
 // It also checks the converse — that `dist/omnibox.css` is actually THERE — because the
 // build has an order dependency (tsup cleans `dist/`) whose failure ships a package
 // whose `./omnibox.css` export 404s, silently, until someone imports it.
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,8 +29,16 @@ const dist = join(root, 'dist');
  * `import("./x.css")` verbatim, and it fails in a consumer exactly the same way as the
  * static form. Without it the gate had a false negative on the shape most likely to be
  * reached for as a "safer" workaround.
+ *
+ * `@` is excluded from the preceding character on purpose. This gate's own biggest input
+ * is `dist/omniboxStyles.generated.js` — 5.5 KB of stylesheet inside a JS string — and a
+ * stylesheet may contain `@import 'reset.css'`. `JSON.stringify` escapes only DOUBLE
+ * quotes, so the single-quoted form reaches the JS source verbatim and would be a false
+ * positive on the gate's own production input; this repo's CSS already uses single quotes
+ * as house style. Excluding `@` is narrower than requiring a `./` specifier, which would
+ * have stopped catching `require("@scope/pkg/style.css")` — a real shape.
  */
-const CSS_IMPORT = /(?:^|[^\w$])(?:import\s*\(?\s*(?:[^'";]*from\s*)?|require\s*\(\s*)['"][^'"]*\.css['"]/;
+const CSS_IMPORT = /(?:^|[^\w$@])(?:import\s*\(?\s*(?:[^'";]*from\s*)?|require\s*\(\s*)['"][^'"]*\.css['"]/;
 
 if (process.argv.includes('--self-test')) {
   const cases = [
@@ -43,7 +51,10 @@ if (process.argv.includes('--self-test')) {
     // and a stylesheet may itself contain `@import "…css"`. The previous case here used
     // `".a{}"` — which contains no `.css` at all, so it named this path and exercised
     // nothing.
-    ['ignores an @import INSIDE baked CSS text', `export const C = "@import \\"reset.css\\";\\n.a{}";`, false],
+    ['ignores a double-quoted @import inside baked CSS text', `export const C = "@import \\"reset.css\\";\\n.a{}";`, false],
+    // The quote style JSON.stringify does NOT escape, so it reaches the JS verbatim.
+    ["ignores a single-quoted @import inside baked CSS text", `export const C = "@import 'reset.css';\\n.a{}";`, false],
+    ['still catches another package\'s stylesheet', `require("@scope/pkg/style.css")`, true],
     ['ignores a URL that merely ends in .css', `const href = "https://x/y.css";`, false],
   ];
   let failures = 0;
@@ -63,7 +74,17 @@ if (!existsSync(dist)) {
   process.exit(1);
 }
 
-const js = readdirSync(dist).filter((f) => /\.(js|cjs|mjs)$/.test(f));
+// Every shipped JS file, at ANY depth. `readdirSync` is not recursive, and `tsup` derives
+// its output layout from the entry list's common base — so ONE nested entry would put
+// files below `dist/` that a top-level-only scan skips while printing PASS over them. A
+// gate that reports a count has to have looked at everything it counted.
+const walk = (dir) =>
+  readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    return statSync(p).isDirectory() ? walk(p) : [relative(dist, p)];
+  });
+
+const js = walk(dist).filter((f) => /\.(js|cjs|mjs)$/.test(f));
 if (js.length === 0) {
   console.error('✗ dist/ contains no JavaScript — the check would pass vacuously.');
   process.exit(1);
