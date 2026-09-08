@@ -1,10 +1,21 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
-import './omnibox.css';
+import { ensureOmniboxStyles } from './omniboxStyles';
 import { parseLaunch, PROVIDERS, type Launch } from './launch';
 import { PlatformLink } from '@immediately-run/sdk/platformLink';
 import { focusHeroOmnibox, registerOmniboxFocus } from './omniboxFocus';
 import type { OmniboxVariant } from './omniboxFocus';
+
+// Module scope, so the rules are present before the first render — the same moment the
+// old `import './omnibox.css'` took effect.
+//
+// It is EAGER for anyone who loads the package entry, and that is worth saying plainly:
+// `index.ts` re-exports `Omnibox`, and the CJS build has no tree-shaking, so
+// `dist/index.cjs` carries an unconditional `require("./Omnibox")` — a consumer importing
+// only `parseLaunch` or `focusOmnibox` still injects the stylesheet. Exactly what the CSS
+// import did, so nothing regressed; it just is not the free lunch an earlier draft of
+// this comment claimed.
+ensureOmniboxStyles();
 
 // The omnibox (R3-512; FRONT_DOOR_IA §5) — the front door's primary control. It
 // does W1 (run a repo by URL or tuple) and W2 (find an app) in one place, as a
