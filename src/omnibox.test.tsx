@@ -144,3 +144,41 @@ describe('a throwing hit source degrades, not crashes', () => {
     warn.mockRestore();
   });
 });
+
+// R3-565 — the styles ship as JS, not as a CSS import.
+//
+// The regression this pins took immediately.run's front door down for two days: the
+// published `dist/Omnibox.js` carried `import './omnibox.css'`, and the platform's
+// sandbox bundler followed that specifier, fetched the stylesheet and evaluated it as
+// JavaScript — `SyntaxError: Unexpected token '.'` on the first selector. A library
+// consumed by a browser bundler it does not control cannot assume a CSS loader exists.
+describe('the stylesheet ships as JavaScript (R3-565)', () => {
+  it('injects exactly one style element, however many times it is asked', async () => {
+    const { ensureOmniboxStyles } = await import('./omniboxStyles');
+    ensureOmniboxStyles();
+    ensureOmniboxStyles();
+    ensureOmniboxStyles();
+    const found = document.querySelectorAll('style#immediately-run-omnibox-css');
+    expect(found).toHaveLength(1);
+    // Not merely present — carrying the real rules. An empty string would satisfy a
+    // presence check and render the combobox unstyled, which is the failure mode a
+    // "did we inject?" assertion cannot see.
+    expect(found[0].textContent).toContain('.omnibox-outer');
+  });
+
+  // Byte-parity with `src/omnibox.css` is NOT asserted here: `npm run check:css-parity`
+  // owns it (with its own four self-test cases), and a second copy of the same gate in a
+  // jsdom suite would only be a second thing to keep current.
+
+  it('never fails the app when the DOM refuses the injection', async () => {
+    // Unstyled beats dead: some embeddings forbid a style element, and the caller can
+    // recover from neither outcome — so the one that leaves the app running wins.
+    const { ensureOmniboxStyles } = await import('./omniboxStyles');
+    document.getElementById('immediately-run-omnibox-css')?.remove();
+    const spy = vi.spyOn(document, 'createElement').mockImplementation(() => {
+      throw new Error('style elements are not permitted here');
+    });
+    expect(() => ensureOmniboxStyles()).not.toThrow();
+    spy.mockRestore();
+  });
+});

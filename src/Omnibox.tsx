@@ -1,10 +1,16 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
-import './omnibox.css';
+import { ensureOmniboxStyles } from './omniboxStyles';
 import { parseLaunch, PROVIDERS, type Launch } from './launch';
 import { PlatformLink } from '@immediately-run/sdk/platformLink';
 import { focusHeroOmnibox, registerOmniboxFocus } from './omniboxFocus';
 import type { OmniboxVariant } from './omniboxFocus';
+
+// Module scope, so the rules are present before the first render — the same moment the
+// old `import './omnibox.css'` took effect, and the reason this is not inside the
+// component (a consumer that imports `parseLaunch` without ever rendering the combobox
+// still pays nothing: this module is only reached through `Omnibox`).
+ensureOmniboxStyles();
 
 // The omnibox (R3-512; FRONT_DOOR_IA §5) — the front door's primary control. It
 // does W1 (run a repo by URL or tuple) and W2 (find an app) in one place, as a

@@ -1,6 +1,6 @@
 {
   "name": "@immediately-run/omnibox",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "The front door's omnibox: one list-autocomplete combobox that runs a repo by URL or tuple and searches a consumer's app directory and docs (the launch grammar always; the hit sources injected). Shared by landing-page and the Home app so there is one component and one grammar (R3-512, R3-530).",
   "license": "MIT",
   "repository": {
@@ -26,12 +26,15 @@
     "*.css"
   ],
   "scripts": {
-    "build": "tsup && node scripts/build-css.mjs",
+    "build": "node scripts/build-css.mjs && tsup && node scripts/build-css.mjs --dist",
     "test": "vitest run",
     "lint": "eslint src",
     "prepare": "npm run build",
     "check:pins": "node scripts/check-dependency-pins.mjs --self-test && node scripts/check-dependency-pins.mjs",
-    "check:publish-version": "node scripts/check-publish-version.mjs --self-test && node scripts/check-publish-version.mjs"
+    "check:publish-version": "node scripts/check-publish-version.mjs --self-test && node scripts/check-publish-version.mjs",
+    "build:css": "node scripts/build-css.mjs",
+    "check:css-parity": "node scripts/check-css-parity.mjs --self-test && node scripts/check-css-parity.mjs",
+    "check:no-css-import": "node scripts/check-no-css-import.mjs --self-test && node scripts/check-no-css-import.mjs"
   },
   "peerDependencies": {
     "@immediately-run/sdk": "0.60.0",
