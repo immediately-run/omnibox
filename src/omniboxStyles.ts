@@ -16,6 +16,12 @@ import { OMNIBOX_CSS } from './omniboxStyles.generated';
 /** Marks the injected element, and makes a second injection a no-op. */
 const STYLE_ID = 'immediately-run-omnibox-css';
 
+/** The diagnostic below is once per document, not once per call. In the failure path the
+ *  element is never created, so the `getElementById` guard never engages and every call
+ *  re-enters the catch — and this function is documented as safe to call from render, so
+ *  in the very embedding the fallback exists for that is one warning per render. */
+let warned = false;
+
 /**
  * Ensure the omnibox stylesheet is in `document`. Idempotent, and safe to call from
  * render: it writes nothing when the element is already there.
@@ -43,6 +49,8 @@ export function ensureOmniboxStyles(): void {
     // a refused `textContent` assignment) and without this they are indistinguishable
     // from "the styles are fine", which is how an unstyled combobox goes unreported.
     // `console.warn` and not `throw`: the caller can recover from neither outcome.
+    if (warned) return;
+    warned = true;
     try {
       console.warn('[omnibox] could not inject the stylesheet; rendering unstyled.', err);
     } catch {

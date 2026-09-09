@@ -1,6 +1,6 @@
 {
   "name": "@immediately-run/omnibox",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The front door's omnibox: one list-autocomplete combobox that runs a repo by URL or tuple and searches a consumer's app directory and docs (the launch grammar always; the hit sources injected). Shared by landing-page and the Home app so there is one component and one grammar (R3-512, R3-530).",
   "license": "MIT",
   "repository": {
