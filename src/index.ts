@@ -1,4 +1,4 @@
-export { default as Omnibox } from './Omnibox';
+export { default as Omnibox, RUN_LABEL } from './Omnibox';
 export type { OmniboxProps, OmniboxHitSources, AppHit, DocHit, DocAnchorProps } from './Omnibox';
 export { parseLaunch, PROVIDERS } from './launch';
 export type { Launch } from './launch';

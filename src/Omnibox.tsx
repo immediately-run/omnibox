@@ -6,6 +6,15 @@ import { PlatformLink } from '@immediately-run/sdk/platformLink';
 import { focusHeroOmnibox, registerOmniboxFocus } from './omniboxFocus';
 import type { OmniboxVariant } from './omniboxFocus';
 
+/**
+ * The submit control's name — the one place the word lives.
+ *
+ * Exported so the test can assert the rendered name against this constant rather than
+ * against a string typed a second time in the test, which would pass just as happily if
+ * both drifted together.
+ */
+export const RUN_LABEL = 'Run';
+
 // Module scope, so the rules are present before the first render — the same moment the
 // old `import './omnibox.css'` took effect.
 //
@@ -280,31 +289,36 @@ function Omnibox({ variant, heroShortcut = false, hits, renderChip, renderDoc }:
     </span>
   );
 
-  const run = runPath !== undefined ? (
-    <PlatformLink
-      id={`${listId}-run`}
-      className="omnibox-run"
-      path={runPath}
-      aria-label="Run"
-    >
-      <span className="omnibox-run-label">Run</span>
+  // The submit control's visible label and its accessible name come from ONE constant.
+  // At <=720px `.omnibox-run-label` is `display: none` (omnibox.css) and the arrow beside it
+  // is `aria-hidden`, so name-from-content disappears entirely at mobile widths and the
+  // `aria-label` is the only name left. Deriving both from the same string is what stops a
+  // copy change renaming the button for sighted users while leaving screen-reader users on
+  // the old word — or, as shipped before R3-570, on no word at all.
+  const runLabel = (
+    <>
+      <span className="omnibox-run-label">{RUN_LABEL}</span>
       <span className="omnibox-run-arrow" aria-hidden="true">
         →
       </span>
+    </>
+  );
+
+  const run = runPath !== undefined ? (
+    <PlatformLink id={`${listId}-run`} className="omnibox-run" path={runPath} aria-label={RUN_LABEL}>
+      {runLabel}
     </PlatformLink>
   ) : (
     <button
       id={`${listId}-run`}
       type="button"
       className="omnibox-run"
+      aria-label={RUN_LABEL}
       aria-disabled="true"
       aria-describedby={`${helperId} ${noticeId}`}
       onClick={(e) => e.preventDefault()}
     >
-      <span className="omnibox-run-label">Run</span>
-      <span className="omnibox-run-arrow" aria-hidden="true">
-        →
-      </span>
+      {runLabel}
     </button>
   );
 
@@ -352,7 +366,7 @@ function Omnibox({ variant, heroShortcut = false, hits, renderChip, renderDoc }:
                     path={locationRow.presentPath}
                   >
                     <span className="omnibox-option-name">{locationRow.display}</span>
-                    <span className="omnibox-option-action">Run</span>
+                    <span className="omnibox-option-action">{RUN_LABEL}</span>
                   </PlatformLink>
                 </div>
               )}
