@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TinkerableContext } from '@immediately-run/sdk/TinkerableContext';
-import Omnibox from './Omnibox';
+import Omnibox, { RUN_LABEL } from './Omnibox';
 import type { AppHit, DocHit } from './Omnibox';
 
 afterEach(cleanup);
@@ -192,5 +192,48 @@ describe('the stylesheet ships as JavaScript (R3-565)', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     create.mockRestore();
     warn.mockRestore();
+  });
+});
+
+
+// R3-570 — the submit control's accessible NAME.
+//
+// The bug this guards shipped in 0.3.x and was found on the front door at 390px: at
+// `max-width: 720px` omnibox.css sets `.omnibox-run-label { display: none }` and the arrow
+// beside it is aria-hidden, so the DISABLED submit had no name at all — name-from-content
+// was its only source. The enabled branch was a PlatformLink that already carried
+// `aria-label`, so the two branches simply disagreed.
+//
+// Asserted through the name computation (`getByRole(role, { name })`), never the rendered
+// text, and the expected name comes from the component's own `RUN_LABEL` — a test spelling
+// 'Run' again would stay green if both drifted.
+describe('the submit control is nameable (R3-570)', () => {
+  it('is named while DISABLED — the state an empty omnibox is always in', () => {
+    renderOmnibox(<Omnibox variant="hero" />);
+    const run = screen.getByRole('button', { name: RUN_LABEL });
+    expect(run.getAttribute('aria-disabled')).toBe('true');
+    expect(run.getAttribute('aria-label')).toBe(RUN_LABEL);
+  });
+
+  it('names it from an ATTRIBUTE, so it survives the mobile rule that hides the label text', () => {
+    // The production mechanism itself: the name computation honours computed display, so
+    // hiding the label removes name-from-content exactly as a 390px viewport does.
+    renderOmnibox(<Omnibox variant="hero" />);
+    const run = screen.getByRole('button', { name: RUN_LABEL });
+    const label = run.querySelector<HTMLElement>('.omnibox-run-label');
+    expect(label).not.toBeNull();
+    label!.style.display = 'none';
+    // Non-vacuity: without the attribute, content alone now names nothing.
+    run.removeAttribute('aria-label');
+    expect(screen.queryAllByRole('button', { name: /[\p{L}\p{N}]/u })).toHaveLength(0);
+    run.setAttribute('aria-label', RUN_LABEL);
+    expect(screen.getByRole('button', { name: RUN_LABEL })).toBe(run);
+  });
+
+  it('is still named once a repo is typed and it becomes the run link', async () => {
+    renderOmnibox(<Omnibox variant="hero" />);
+    await type('acme/todo');
+    const run = screen.getByRole('link', { name: RUN_LABEL });
+    expect(run.getAttribute('aria-label')).toBe(RUN_LABEL);
   });
 });
