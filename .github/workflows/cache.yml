@@ -1,7 +1,8 @@
 # Publishes a pre-cached zip of this repo to its own GitHub Pages on every push
 # to main, so immediately.run can load it fast — without hitting the GitHub API
 # (slow, and rate-limited for anonymous users). immediately.run looks for the
-# zip at https://<owner>.github.io/<repo>/cached_repositories/<branch>.zip and
+# zip at https://<owner>.github.io/<repo>/cached_repositories/<branch>.zip — and,
+# for a commit-pinned library mount, cached_repositories/<sha>.zip — and
 # falls back to the API if it's absent.
 #
 # The zip is built by `@immediately-run/cli cache-zip`, which embeds a
@@ -140,15 +141,30 @@ jobs:
             echo "no package-lock.json — skipping install; cache-zip will use the package CDN"
           fi
 
+      # Two keys for the same build: the branch name (what apps booted by branch
+      # probe) and the pushing commit's sha (what a commit-pinned library mount
+      # probes — site-main COW.ts mountGitHubRepository -> cachedZipUrl uses the
+      # pin verbatim, and libraryFreshness.ts serves a commit pin cache/REST-first;
+      # LIBRARY_MOUNTS_SPEC §7 recommends commit pins). A branch-keyed zip alone
+      # leaves every sha-pinned mount on the anonymous-REST fallback (found on
+      # R3-624: file-selector's pinned sha 404s while its main.zip is 200).
+      #
+      # BOUND, by design: each deploy REPLACES the Pages site, so a sha zip serves
+      # only while its commit is the branch head — a consumer's pinned sha is evicted
+      # by the library's next push and its mount falls back to REST (correct, slower)
+      # until the consumer re-pins. A pin bump is a refresh; keeping stale shas
+      # resident across deploys is a possible follow-up, deliberately not built here.
       - name: Build cache zip
         run: |
-          npx -y @immediately-run/cli@0.8.2 cache-zip \
-            --owner "${{ github.repository_owner }}" \
-            --repo "${{ github.event.repository.name }}" \
-            --ref "${{ github.ref_name }}" \
-            --default-branch "${{ github.event.repository.default_branch }}" \
-            --bundle-packages \
-            --out "_site/cached_repositories/${{ github.ref_name }}.zip"
+          for ref in "${{ github.ref_name }}" "${{ github.sha }}"; do
+            npx -y @immediately-run/cli@0.8.2 cache-zip \
+              --owner "${{ github.repository_owner }}" \
+              --repo "${{ github.event.repository.name }}" \
+              --ref "$ref" \
+              --default-branch "${{ github.event.repository.default_branch }}" \
+              --bundle-packages \
+              --out "_site/cached_repositories/$ref.zip"
+          done
 
       # A friendly landing page so the Pages root isn't a bare 404. Optional —
       # delete it if you serve your own content from Pages. (To also host a live
