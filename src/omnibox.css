@@ -6,9 +6,14 @@
   width: 100%;
 }
 
-.omnibox-outer--hero,
 .omnibox-outer--new {
   max-width: 620px;
+}
+
+/* The hero is the canvas's quiet pill (R3-622, quiet-column-1a): 660px wide, a
+   30px pill, the canvas's hairline at rest, the accent only on focus. */
+.omnibox-outer--hero {
+  max-width: 660px;
 }
 
 .omnibox-row {
@@ -16,10 +21,22 @@
   align-items: stretch;
   gap: 0;
   border: 1px solid var(--line);
-  border-color: var(--accent);
   border-radius: var(--r-md);
   background: var(--panel);
   overflow: hidden;
+}
+
+.omnibox-outer--hero .omnibox-row {
+  border-color: var(--line-2);
+  border-radius: var(--r-pill);
+}
+
+/* Hairline at rest, accent on focus — an accent border always on reads as
+   focus-on-always (R3-622). The nav variant keeps its own line-coloured border
+   at every state, exactly as before. */
+.omnibox-outer--hero:focus-within .omnibox-row,
+.omnibox-outer--new:focus-within .omnibox-row {
+  border-color: var(--accent);
 }
 
 .omnibox-input {
@@ -79,11 +96,32 @@
   font-family: var(--mono);
 }
 
-.omnibox--hero .omnibox-run:not([aria-disabled='true']),
+.omnibox {
+  /* One home for the run label's ink on the gradient (R6): the hero's label is
+     light on the mid-tone gradient (canvas 1a); /new keeps the dark label. */
+  --omnibox-run-ink: #16101a;
+  --omnibox-run-ink-hero: #fff;
+}
+
 .omnibox--new .omnibox-run:not([aria-disabled='true']) {
   border: 0;
-  color: #16101a;
+  color: var(--omnibox-run-ink);
   background-image: var(--grad-btn);
+}
+
+.omnibox--hero .omnibox-run:not([aria-disabled='true']) {
+  border: 0;
+  color: var(--omnibox-run-ink-hero);
+  background-image: var(--grad-btn);
+}
+
+/* The canvas's Run: 13px 28px of label in a 30px pill — desktop widths only, so
+   the mobile 44px arrow (below) keeps its square shape and zero padding. */
+@media (min-width: 721px) {
+  .omnibox--hero .omnibox-run:not([aria-disabled='true']) {
+    padding: 13px 28px;
+    border-radius: var(--r-pill);
+  }
 }
 
 .omnibox-run[aria-disabled='true'] {
