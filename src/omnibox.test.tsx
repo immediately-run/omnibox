@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TinkerableContext } from '@immediately-run/sdk/TinkerableContext';
-import Omnibox, { RUN_LABEL } from './Omnibox';
+import Omnibox, { RUN_LABEL, PLACEHOLDER_DESKTOP, PLACEHOLDER_MOBILE } from './Omnibox';
 import type { AppHit, DocHit } from './Omnibox';
 
 afterEach(cleanup);
@@ -195,6 +195,39 @@ describe('the stylesheet ships as JavaScript (R3-565)', () => {
   });
 });
 
+
+// R3-622 — the hero reads as the canvas's quiet pill. The look rides the variant
+// class (the package's seam; see omnibox.css), and the placeholder is the bare
+// grammar on desktop, the instructional sentence on mobile — both asserted from
+// the component's own exported strings, never retyped here (R2).
+describe('the hero variant (R3-622)', () => {
+  it('renders on the hero variant classes — the seams that carry the canvas pill', () => {
+    renderOmnibox(<Omnibox variant="hero" />);
+    // Both seams: the inner class names the variant for the Run rules, the outer
+    // row is where the pill/hairline/width ride (omnibox.css) — renaming either
+    // while the look vanishes must fail here, not on the live leg.
+    expect(document.querySelector('.omnibox.omnibox--hero')).not.toBeNull();
+    expect(document.querySelector('.omnibox-outer--hero .omnibox-row')).not.toBeNull();
+  });
+
+  it('the desktop placeholder is the bare grammar owner/repo', () => {
+    // jsdom has no window.matchMedia, so useMediaQuery's initial state is false —
+    // the desktop branch — without any stub.
+    renderOmnibox(<Omnibox variant="hero" />);
+    expect(screen.getByRole('combobox').getAttribute('placeholder')).toBe(PLACEHOLDER_DESKTOP);
+  });
+
+  it('the mobile branch keeps its instructional placeholder', () => {
+    const mq = { matches: true, addEventListener: () => {}, removeEventListener: () => {} };
+    vi.stubGlobal('matchMedia', () => mq);
+    try {
+      renderOmnibox(<Omnibox variant="hero" />);
+      expect(screen.getByRole('combobox').getAttribute('placeholder')).toBe(PLACEHOLDER_MOBILE);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 // R3-570 — the submit control's accessible NAME.
 //

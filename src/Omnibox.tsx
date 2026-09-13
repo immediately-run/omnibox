@@ -55,6 +55,13 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+/* The field's placeholder, per branch (R3-622). The canvas's hero shows the bare
+ * grammar `owner/repo`; the mobile branch keeps the longer instruction, because
+ * the same field at 390px would otherwise carry no instruction at all. Exported
+ * so a test asserts the component's own strings rather than retyping them. */
+export const PLACEHOLDER_DESKTOP = 'owner/repo';
+export const PLACEHOLDER_MOBILE = 'Paste a repo or an app name';
+
 /* ── the hit vocabulary a consumer's sources speak ──────────────────────── */
 
 export interface AppHit {
@@ -338,7 +345,7 @@ function Omnibox({ variant, heroShortcut = false, hits, renderChip, renderDoc }:
           aria-activedescendant={highlight >= 0 ? options[highlight]?.id : undefined}
           aria-describedby={`${helperId} ${noticeId}`}
           aria-invalid={notice ? true : undefined}
-          placeholder={isMobile ? 'Paste a repo or an app name' : 'owner/repo@branch, a GitHub URL, or an app name'}
+          placeholder={isMobile ? PLACEHOLDER_MOBILE : PLACEHOLDER_DESKTOP}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
