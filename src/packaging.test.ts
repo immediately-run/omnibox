@@ -15,6 +15,10 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+// The one home for the css-import shape (R6): the SHIPPED-bytes gate recognizes
+// static, single-quoted, require and dynamic forms — the source scan must not
+// re-spell a weaker second pattern.
+import { CSS_IMPORT } from '../scripts/check-no-css-import.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -61,9 +65,8 @@ describe('the package names resolvable paths (R3-624)', () => {
     // strip them so the scan sees code, not history.
     const stripComments = (s: string) =>
       s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-    const cssImport = /(from\s+|import\s+['"])[^'"]*\.css['"]/;
     const offenders = sourceFiles(join(root, 'src')).filter((f) =>
-      cssImport.test(stripComments(readFileSync(f, 'utf8'))),
+      CSS_IMPORT.test(stripComments(readFileSync(f, 'utf8'))),
     );
     expect(offenders).toEqual([]);
   });
