@@ -1,6 +1,6 @@
 {
   "name": "@immediately-run/omnibox",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "The front door's omnibox: one list-autocomplete combobox that runs a repo by URL or tuple and searches a consumer's app directory and docs (the launch grammar always; the hit sources injected). Shared by landing-page and the Home app so there is one component and one grammar (R3-512, R3-530).",
   "license": "MIT",
   "repository": {
@@ -42,7 +42,7 @@
     "check:no-css-import": "node scripts/check-no-css-import.mjs --self-test && node scripts/check-no-css-import.mjs"
   },
   "peerDependencies": {
-    "@immediately-run/sdk": "0.60.0",
+    "@immediately-run/sdk": ">=0.60.0 <1.0.0",
     "react": "^19.2.5"
   },
   "devDependencies": {
