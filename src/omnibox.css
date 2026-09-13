@@ -28,7 +28,6 @@
 
 .omnibox-outer--hero .omnibox-row {
   border-color: var(--line-2);
-  border-radius: var(--r-pill);
 }
 
 /* Hairline at rest, accent on focus — an accent border always on reads as
@@ -115,9 +114,15 @@
   background-image: var(--grad-btn);
 }
 
-/* The canvas's Run: 13px 28px of label in a 30px pill — desktop widths only, so
-   the mobile 44px arrow (below) keeps its square shape and zero padding. */
+/* The canvas's Run and pill: 13px 28px of label in a 30px radius, on the row
+   too — desktop widths only, so the mobile 44px arrow (below) keeps its square
+   shape and zero padding inside an unclipped row (the canvas draws the pill at
+   desktop). */
 @media (min-width: 721px) {
+  .omnibox-outer--hero .omnibox-row {
+    border-radius: var(--r-pill);
+  }
+
   .omnibox--hero .omnibox-run:not([aria-disabled='true']) {
     padding: 13px 28px;
     border-radius: var(--r-pill);

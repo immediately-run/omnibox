@@ -201,9 +201,13 @@ describe('the stylesheet ships as JavaScript (R3-565)', () => {
 // grammar on desktop, the instructional sentence on mobile — both asserted from
 // the component's own exported strings, never retyped here (R2).
 describe('the hero variant (R3-622)', () => {
-  it('renders on the hero variant class — the seam that carries the canvas pill', () => {
+  it('renders on the hero variant classes — the seams that carry the canvas pill', () => {
     renderOmnibox(<Omnibox variant="hero" />);
+    // Both seams: the inner class names the variant for the Run rules, the outer
+    // row is where the pill/hairline/width ride (omnibox.css) — renaming either
+    // while the look vanishes must fail here, not on the live leg.
     expect(document.querySelector('.omnibox.omnibox--hero')).not.toBeNull();
+    expect(document.querySelector('.omnibox-outer--hero .omnibox-row')).not.toBeNull();
   });
 
   it('the desktop placeholder is the bare grammar owner/repo', () => {
