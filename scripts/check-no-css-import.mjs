@@ -40,7 +40,14 @@ const dist = join(root, 'dist');
  */
 const CSS_IMPORT = /(?:^|[^\w$@])(?:import\s*\(?\s*(?:[^'";]*from\s*)?|require\s*\(\s*)['"][^'"]*\.css['"]/;
 
-if (process.argv.includes('--self-test')) {
+// Exported for the packaging test (src/packaging.test.ts) so the SOURCE-level scan
+// and this SHIPPED-bytes gate recognize the same four import shapes (R6: one home
+// per pattern). The self-test and the walk below only run when executed as a script.
+export { CSS_IMPORT };
+
+const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+
+if (isMain && process.argv.includes('--self-test')) {
   const cases = [
     ['detects a bare ESM side-effect import', `import "./omnibox.css";`, true],
     ['detects a CJS require', `var x=require("./omnibox.css");`, true],
@@ -69,6 +76,7 @@ if (process.argv.includes('--self-test')) {
   process.exit(failures ? 1 : 0);
 }
 
+if (isMain) {
 if (!existsSync(dist)) {
   console.error('✗ dist/ is missing — run `npm run build` first.');
   process.exit(1);
@@ -109,3 +117,4 @@ if (!existsSync(join(dist, 'omnibox.css'))) {
 }
 
 console.log(`PASS  ${js.length} shipped JS files, none imports a stylesheet; dist/omnibox.css present.`);
+}
