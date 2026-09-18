@@ -33,7 +33,7 @@
   "scripts": {
     "build": "node scripts/build-css.mjs && tsup && node scripts/build-css.mjs --dist",
     "test": "vitest run",
-    "lint": "eslint src",
+    "lint": "eslint src --max-warnings 0",
     "prepare": "npm run build",
     "check:pins": "node scripts/check-dependency-pins.mjs --self-test && node scripts/check-dependency-pins.mjs",
     "check:publish-version": "node scripts/check-publish-version.mjs --self-test && node scripts/check-publish-version.mjs",
