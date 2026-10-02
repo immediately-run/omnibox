@@ -215,18 +215,40 @@ jobs:
           const owner = process.env.KEPT_OWNER;
           const repo = process.env.KEPT_REPO;
           const gh = (...a) => execFileSync('gh', ['api', ...a], { encoding: 'utf8', maxBuffer: 1 << 24 });
-          const repos = JSON.parse(gh(`/orgs/${owner}/repos?per_page=100`, '-H', 'Accept: application/vnd.github+json'));
+          // Paginated, like the drift check's own listing: past 100 org repos a
+          // single page would silently truncate the keep-set. `--paginate` prints
+          // one JSON array per page, so project to names and split — the same
+          // shape the drift check uses for the same listing.
+          const names = gh(`/orgs/${owner}/repos?per_page=100`, '--paginate', '--jq', '.[].name')
+            .split('\n').map((l) => l.trim()).filter(Boolean);
           const kept = new Set();
-          for (const r of repos) {
-            if (r.name === repo || r.archived) continue;
+          const pinPrefix = `github:${owner}/${repo}#`;
+          for (const name of names) {
+            if (name === repo) continue; // this repo's own head is built separately
             let pkg;
             try {
-              pkg = gh(`/repos/${owner}/${r.name}/contents/package.json`, '-H', 'Accept: application/vnd.github.raw');
-            } catch {
-              continue; // a repo with no package.json, or one this token cannot read
+              pkg = gh(`/repos/${owner}/${name}/contents/package.json`, '-H', 'Accept: application/vnd.github.raw');
+            } catch (e) {
+              const msg = String(e && e.stderr || e);
+              // Benign only: no package.json (404), or a repo this token cannot read
+              // (403 — e.g. a private consumer). EVERYTHING ELSE — a rate limit, a
+              // 5xx, a DNS failure — RETHROWS and fails the run, fail-closed: the
+              // previous Pages site (its zips included) stays, and a dropped pin is
+              // never silent (the exact eviction this keep-set exists to stop).
+              if (/HTTP 40[34]/.test(msg)) continue;
+              throw e;
             }
-            for (const m of pkg.matchAll(new RegExp('"github:' + owner + '/' + repo + '#([0-9a-f]{40})"', 'g'))) {
-              kept.add(m[1]);
+            // Walk the parsed dependency values, never a regex over raw text: any
+            // pin shape npm accepts stays keepable (devDependencies and optional
+            // peers included).
+            for (const group of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+              const deps = JSON.parse(pkg)[group];
+              if (!deps) continue;
+              for (const spec of Object.values(deps)) {
+                if (typeof spec === 'string' && spec.startsWith(pinPrefix) && /^[0-9a-f]{40}$/.test(spec.slice(pinPrefix.length))) {
+                  kept.add(spec.slice(pinPrefix.length));
+                }
+              }
             }
           }
           console.log('refs=' + [...kept].join(' '));
