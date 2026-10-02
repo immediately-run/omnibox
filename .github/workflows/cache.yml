@@ -232,8 +232,11 @@ jobs:
           const names = gh(`/users/${owner}/repos?per_page=100`, '--paginate', '--jq', '.[].name')
             .split('\n').map((l) => l.trim()).filter(Boolean);
           const kept = new Set();
-          // GitHub resolves owner/repo names case-insensitively, so a functioning
-          // pin spelled with non-canonical casing must still be kept.
+          // GitHub resolves owner/repo names case-insensitively and git resolves
+          // UPPERCASE hex, so a functioning pin spelled with non-canonical casing —
+          // the owner/repo half OR the sha half — must still be kept. The sha stays
+          // VERBATIM (never lowercased): the client probes the pin verbatim, so a
+          // lowercased publish would 404.
           const pinPrefix = `github:${owner}/${repo}#`.toLowerCase();
           for (const name of names) {
             if (name === repo) continue; // this repo's own head is built separately
@@ -272,7 +275,7 @@ jobs:
               const deps = parsed[group];
               if (!deps) continue;
               for (const spec of Object.values(deps)) {
-                if (typeof spec === 'string' && spec.toLowerCase().startsWith(pinPrefix) && /^[0-9a-f]{40}$/.test(spec.slice(pinPrefix.length))) {
+                if (typeof spec === 'string' && spec.toLowerCase().startsWith(pinPrefix) && /^[0-9a-fA-F]{40}$/.test(spec.slice(pinPrefix.length))) {
                   kept.add(spec.slice(pinPrefix.length));
                 }
               }
