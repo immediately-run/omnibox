@@ -225,11 +225,16 @@ jobs:
           // Paginated, like the drift check's own listing: past 100 org repos a
           // single page would silently truncate the keep-set. `--paginate` prints
           // one JSON array per page, so project to names and split — the same
-          // shape the drift check uses for the same listing.
-          const names = gh(`/orgs/${owner}/repos?per_page=100`, '--paginate', '--jq', '.[].name')
+          // shape the drift check uses for the same listing. `/users/<owner>/repos`
+          // (NOT `/orgs/`, which 404s for a USER-owned owner — a fork or a user repo
+          // adopting this template would lose its cache on every push): it answers
+          // 200 for both org- and user-owned owners.
+          const names = gh(`/users/${owner}/repos?per_page=100`, '--paginate', '--jq', '.[].name')
             .split('\n').map((l) => l.trim()).filter(Boolean);
           const kept = new Set();
-          const pinPrefix = `github:${owner}/${repo}#`;
+          // GitHub resolves owner/repo names case-insensitively, so a functioning
+          // pin spelled with non-canonical casing must still be kept.
+          const pinPrefix = `github:${owner}/${repo}#`.toLowerCase();
           for (const name of names) {
             if (name === repo) continue; // this repo's own head is built separately
             let pkg;
@@ -257,11 +262,17 @@ jobs:
             // keepable. Non-sha pins (a tag, a short sha) are npm-accepted but
             // NOT kept — the 40-hex check is the injection guard for the unquoted
             // refs expansion below.
+            let parsed;
+            try {
+              parsed = JSON.parse(pkg);
+            } catch (e) {
+              throw new Error(`${owner}/${name}: unparseable package.json — ${e && e.message}`);
+            }
             for (const group of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-              const deps = JSON.parse(pkg)[group];
+              const deps = parsed[group];
               if (!deps) continue;
               for (const spec of Object.values(deps)) {
-                if (typeof spec === 'string' && spec.startsWith(pinPrefix) && /^[0-9a-f]{40}$/.test(spec.slice(pinPrefix.length))) {
+                if (typeof spec === 'string' && spec.toLowerCase().startsWith(pinPrefix) && /^[0-9a-f]{40}$/.test(spec.slice(pinPrefix.length))) {
                   kept.add(spec.slice(pinPrefix.length));
                 }
               }
