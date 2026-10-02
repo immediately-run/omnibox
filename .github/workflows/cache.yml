@@ -80,7 +80,12 @@ jobs:
       # (`@latest`, `@v4`) would let an upstream compromise poison the cache a
       # repo serves to immediately.run (ZIP_CACHE_AUTOMATION_SPEC §8). Bump
       # these deliberately when you mean to.
+      # R3-897: full history — the build loop below checks out KEPT (older) refs
+      # to build their zips from their own trees, which a depth-1 clone cannot
+      # reach.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -208,8 +213,10 @@ jobs:
           KEPT_OWNER: ${{ github.repository_owner }}
           KEPT_REPO: ${{ github.event.repository.name }}
         run: |
-          # KEPT-ZIP-REFS-BEGIN (R3-897) — the block scripts/check-kept-zip-refs.mjs
-          # extracts and drives; edit here, never only in the test.
+          # KEPT-ZIP-REFS-BEGIN (R3-897) — new-project-template's
+          # scripts/check-kept-zip-refs.mjs extracts and drives this block. Edit the
+          # TEMPLATE's copy (this file is replicated by value; a local edit of a
+          # consumer's copy is drift the nightly check reports), then re-sync.
           node <<'KEPT_ZIP_REFS' >> "$GITHUB_OUTPUT"
           const { execFileSync } = require('node:child_process');
           const owner = process.env.KEPT_OWNER;
@@ -229,18 +236,27 @@ jobs:
             try {
               pkg = gh(`/repos/${owner}/${name}/contents/package.json`, '-H', 'Accept: application/vnd.github.raw');
             } catch (e) {
-              const msg = String(e && e.stderr || e);
+              const msg = String((e && e.stderr) || e);
               // Benign only: no package.json (404), or a repo this token cannot read
-              // (403 — e.g. a private consumer). EVERYTHING ELSE — a rate limit, a
-              // 5xx, a DNS failure — RETHROWS and fails the run, fail-closed: the
-              // previous Pages site (its zips included) stays, and a dropped pin is
-              // never silent (the exact eviction this keep-set exists to stop).
-              if (/HTTP 40[34]/.test(msg)) continue;
+              // (a plain permission 403 — e.g. a private consumer). EVERYTHING ELSE
+              // — a 5xx, a DNS failure, and RATE LIMITS, which GitHub answers as
+              // 403s ("API rate limit exceeded" / "secondary rate limit") —
+              // RETHROWS and fails the run, fail-closed: the previous Pages site
+              // (its zips included) stays, and a dropped pin is never silent (the
+              // exact eviction this keep-set exists to stop). The scan makes ~2
+              // rapid gh calls per org repo, exactly the burst secondary limits
+              // target, so a rate limit is a realistic mid-run event, not a
+              // theoretical one.
+              if (/HTTP 404/.test(msg)) continue;
+              if (/HTTP 403/.test(msg) && !/rate limit/i.test(msg)) continue;
               throw e;
             }
-            // Walk the parsed dependency values, never a regex over raw text: any
-            // pin shape npm accepts stays keepable (devDependencies and optional
-            // peers included).
+            // Walk the parsed dependency values, never a regex over raw text: a
+            // full-40-hex sha pin in ANY dependency group (dependencies,
+            // devDependencies, peerDependencies, optionalDependencies) stays
+            // keepable. Non-sha pins (a tag, a short sha) are npm-accepted but
+            // NOT kept — the 40-hex check is the injection guard for the unquoted
+            // refs expansion below.
             for (const group of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
               const deps = JSON.parse(pkg)[group];
               if (!deps) continue;
@@ -262,8 +278,19 @@ jobs:
 
       - name: Build cache zip
         run: |
+          # R3-897: `cache-zip` archives the tracked tree at HEAD and the workflow's
+          # checkout is depth-1 — so building a KEPT (older) ref's zip requires the
+          # full history (fetch-depth: 0 above) and a `git checkout` of the ref, or
+          # the "rebuilt" zip would carry the new head's tree with a mismatched
+          # sidecar commitSha — a zip the consumer's integrity check REJECTS, which
+          # is worse than the eviction (a poisoned probe plus a spurious integrity
+          # event on every cold boot). The branch name and the pushing sha need no
+          # checkout (they ARE HEAD at run time).
           for ref in "${{ github.ref_name }}" "${{ github.sha }}" ${{ steps.kept.outputs.refs }}; do
             [ -n "$ref" ] || continue
+            if [ "$ref" != "${{ github.ref_name }}" ] && [ "$ref" != "${{ github.sha }}" ]; then
+              git checkout --force --quiet "$ref"
+            fi
             npx -y @immediately-run/cli@0.9.1 cache-zip \
               --owner "${{ github.repository_owner }}" \
               --repo "${{ github.event.repository.name }}" \
