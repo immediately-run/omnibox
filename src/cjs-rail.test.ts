@@ -5,12 +5,16 @@
 // type is invalid … got: object"). The probe is the same one the venue used:
 // require the packed package's CJS entry and ask typeof Omnibox.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { afterAll, describe, expect, it } from 'vitest';
+// The one spelling of the require shape lives in the build script (R6) — a
+// re-spelled copy here would be exactly the weaker second pattern
+// packaging.test.ts refuses for CSS_IMPORT.
+import { REQUIRE_RE, dropNodeModeWrap, fixCjsEmit } from '../scripts/fix-cjs-emit.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = mkdtempSync(join(tmpdir(), 'omnibox-pack-'));
@@ -44,6 +48,31 @@ function unpackTarball(): string {
   return unpacked;
 }
 
+describe('fix-cjs-emit, fail-closed (R3-1077 review: the guard branches need their own pin)', () => {
+  const hasSibling = (spec: string) => spec === './Omnibox';
+
+  it('rewrites an extensionless relative require to its .cjs sibling, in either quote style', () => {
+    expect(fixCjsEmit('var a = require("./Omnibox");', hasSibling)).toBe('var a = require("./Omnibox.cjs");');
+    expect(fixCjsEmit("var a = require('./Omnibox');", hasSibling)).toBe("var a = require('./Omnibox.cjs');");
+  });
+
+  it('leaves an already-explicit or bare require alone', () => {
+    expect(fixCjsEmit('var a = require("./Omnibox.cjs");', hasSibling)).toBe('var a = require("./Omnibox.cjs");');
+    expect(fixCjsEmit('var r = require("react");', hasSibling)).toBe('var r = require("react");');
+  });
+
+  it('throws when the extensionless require has no .cjs sibling', () => {
+    expect(() => fixCjsEmit('var a = require("./Missing");', hasSibling)).toThrow(/no \.cjs sibling/);
+  });
+
+  it('dropNodeModeWrap drops the flag on local requires and keeps it on bare specifiers', () => {
+    expect(dropNodeModeWrap('var a = __toESM(require("./Omnibox.cjs"), 1);')).toBe(
+      'var a = __toESM(require("./Omnibox.cjs"));',
+    );
+    expect(dropNodeModeWrap('var r = __toESM(require("react"), 1);')).toBe('var r = __toESM(require("react"), 1);');
+  });
+});
+
 describe('the packed CJS entry (R3-1077)', () => {
   it('yields the component as the Omnibox named export, not the interop envelope', () => {
     const unpacked = unpackTarball();
@@ -56,12 +85,10 @@ describe('the packed CJS entry (R3-1077)', () => {
 
   it('no dist/*.cjs in the tarball holds an extensionless relative require', () => {
     const unpacked = unpackTarball();
-    const distFiles = execFileSync('ls', [join(unpacked, 'dist')], { encoding: 'utf8' }).split('\n');
+    const distFiles = readdirSync(join(unpacked, 'dist'));
     for (const f of distFiles.filter((f) => f.endsWith('.cjs'))) {
       const text = readFileSync(join(unpacked, 'dist', f), 'utf8');
-      const bad = [...text.matchAll(/require\("(\.\.?\/[^"]+)"\)/g)].filter(
-        (m) => !/\.(cjs|js|json|node)$/.test(m[1]),
-      );
+      const bad = [...text.matchAll(REQUIRE_RE)].filter((m) => !/\.(cjs|js|json|node)$/.test(m[2]));
       expect(bad, `${f}: ${bad.map((m) => m[0]).join(', ')}`).toEqual([]);
     }
   });
