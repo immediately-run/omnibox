@@ -69,6 +69,7 @@ describe('fix-cjs-emit, fail-closed (R3-1077 review: the guard branches need the
     expect(dropNodeModeWrap('var a = __toESM(require("./Omnibox.cjs"), 1);')).toBe(
       'var a = __toESM(require("./Omnibox.cjs"));',
     );
+    expect(dropNodeModeWrap("var a = __toESM(require('./Omnibox'), 1);")).toBe("var a = __toESM(require('./Omnibox'));");
     expect(dropNodeModeWrap('var r = __toESM(require("react"), 1);')).toBe('var r = __toESM(require("react"), 1);');
   });
 });
