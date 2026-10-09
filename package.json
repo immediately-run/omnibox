@@ -1,6 +1,6 @@
 {
   "name": "@immediately-run/omnibox",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "The front door's omnibox: one list-autocomplete combobox that runs a repo by URL or tuple and searches a consumer's app directory and docs (the launch grammar always; the hit sources injected). Shared by landing-page and the Home app so there is one component and one grammar (R3-512, R3-530).",
   "license": "MIT",
   "repository": {
@@ -31,7 +31,7 @@
     "src/Omnibox.tsx"
   ],
   "scripts": {
-    "build": "node scripts/build-css.mjs && tsup && node scripts/build-css.mjs --dist",
+    "build": "node scripts/build-css.mjs && tsup && node scripts/fix-cjs-emit.mjs && node scripts/build-css.mjs --dist",
     "test": "vitest run",
     "lint": "eslint src --max-warnings 0",
     "prepare": "npm run build",
